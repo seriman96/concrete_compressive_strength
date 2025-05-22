@@ -1,0 +1,954 @@
+---
+title: "Regression project"
+output: 
+   pdf_document: default
+   latex_engine: xelatex
+   html_document: default
+date: "2024-11-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r eval=FALSE, include=FALSE}
+install.packages("tinytex")
+tinytex::install_tinytex()
+```
+```{r eval=FALSE, include=FALSE}
+install.packages("xfun")
+```
+
+***
+### Seriman Doumbia
+
+### ID: 202382485
+
+### Data Science
+
+### Concrete Compressive Strength Regression
+
+### ..............................................................................................
+
+
+## Abstract
+
+Concrete is the most important material in civil engineering. The
+concrete compressive strength is a highly nonlinear function of age and
+ingredients. These ingredients include cement, blast furnace slag, fly ash,
+water, superplasticizer, coarse aggregate, and fine aggregate.
+
+## Data Characteristics
+
+Given is the variable name, variable type, the measurement unit and a brief description.
+The concrete compressive strength is the regression problem. The order of the listing 
+corresponds to the order of numerals along the rows of the database.
+
+### Columns Name
+
+Cement                         
+
+Blast Furnace Slag             
+
+Fly Ash                        
+
+Water                          
+
+Superplasticizer          
+
+Coarse Aggregate               
+
+Fine Aggregate                 
+
+Age                         
+
+Concrete compressive strength
+
+### Columns Data Type
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+quantitative
+
+### Columns Measurement
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+kg in a m3 mixture
+
+Day
+
+MPa
+
+### Columns Description
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Input Variable
+
+Output Variable
+
+## Summary Statistics
+
+Number of instances (observations): 1030
+Number of Attributes: 9
+Attribute breakdown: 8 quantitative input variables, 
+and 1 quantitative output variable
+
+Missing Attribute Values: None
+
+## Questions
+
+1. Is there a relationship between the predictors (age and ingredients) 
+and the response variable (compressive strength)?
+
+### Given there is a relationship:
+
+1. How strong is it?
+2. Which predictors contribute to compressive strength?
+3. How large is the effect of each predictor on compressive strength?
+4. How accurately can I predict compressive strength?
+5. Is the relationship linear?
+6. Is there synergy/interaction among the predictors?
+
+## Required libraries
+
+```{r}
+setwd("D:/Data Science/1st_Semester/Regression_model/Proposal")
+
+library(ggplot2)
+library(car)
+library(corrplot)
+library(infotheo)
+library(olsrr)
+library(lmtest)
+```
+
+## Step 1: 
+
+```{r}
+data <-read.csv("./Concrete Compressive Strength.csv")
+head(data)
+names(data) # name of present feature in the dataset
+class(data$Water) # class of the given feature
+str(data) # it like info() in python
+summary(data) #like describe() in python
+```
+
+## Step 2: Clean column names
+
+```{r}
+colnames(data) <- gsub("\\s+", "_", colnames(data))
+```
+
+## Step 3: Correlation analysis
+
+```{r}
+correlation_matrix <- cor(data)
+# print(correlation_matrix)
+corrplot::corrplot(correlation_matrix, method = "number") # 'arg' should be one of “circle”, “square”, “ellipse”, “number”, “shade”, “color”, “pie”
+```
+
+### Graph shows high positive relationship between Cement and Concrete.compressive.strength with 0.5 as cor value.
+
+## Step 4: Visualize relationships
+
+
+```{r}
+pairs(data[, c("Cement", "Blast.Furnace.Slag", "Fly.Ash", 
+               "Water", "Superplasticizer", "Coarse.Aggregate", "Fine.Aggregate",
+               "Age..day.", "Concrete.compressive.strength")], main = "Scatterplot Matrix")
+```
+
+```{r}
+# Define a function for mutual information scores:
+mutual_info_scores <- function(data, response_var, top_n = 3) {
+  # Ensure the response variable is a factor for discretization
+  data[[response_var]] <- as.factor(data[[response_var]])
+  
+  # Convert data to a discretized version (required for mutual information)
+  disc_data <- discretize(data, disc = "equalfreq")
+  
+  # Calculate mutual information for all predictors against the response variable
+  mi_scores <- sapply(colnames(disc_data), function(var) {
+    if (var != response_var) {
+      mutinformation(disc_data[[var]], disc_data[[response_var]]) # Calculates the mutual information score between two variables.
+    } else {
+      NA  # Skip the response variable itself
+    }
+  })
+  
+  # Format the results into a data frame
+  mi_df <- data.frame(Variable = colnames(data), MI_Score = mi_scores)
+  mi_df <- mi_df[!is.na(mi_df$MI_Score), ]  # Remove NA values
+  print(mi_df)
+  
+  # Plot the mutual information scores
+  p <- ggplot(mi_df, aes(x = reorder(Variable, MI_Score), y = MI_Score)) +
+    geom_bar(stat = "identity", fill = "skyblue") +
+    coord_flip() +
+    labs(title = "Mutual Information Scores", x = "Predictor Variables", y = "Mutual Information") +
+    theme_minimal()
+  print(p)
+  
+}
+
+# Apply the function to your dataset:
+# Example: Assuming the response variable is "Concrete compressive strength"
+mi_results <- mutual_info_scores(data, response_var = "Concrete.compressive.strength")
+```
+
+### The top 3 predictors are: Age..day., Cement, Water, which show that those 3 predictors are the most influential factor for predicting Concrete compressive strength.
+
+
+```{r}
+## Get the top predictors
+top_predictors <- c("Age..day.", "Cement", "Water")
+print(top_predictors)
+response_var = "Concrete.compressive.strength"
+# Plot relationships for the top predictors
+for (var in top_predictors) {
+  h <- ggplot(data, aes_string(x = var, y = response_var)) +
+    geom_point(alpha = 0.6, color = "blue") +
+    labs(title = paste("Relationship between", var, "and", response_var),
+         x = var, y = response_var) +
+    theme_minimal()
+  print(h)
+}
+```
+
+### Overall those 3 predictors show some significant relationship with the response variable
+
+## Step 5: OLS Regression Analysis
+
+```{r}
+# Fit the OLS model
+model <- lm(Concrete.compressive.strength ~ ., data = data)
+ols_regress(model) #sig. in output table represent p-value
+```
+
+```{r}
+# Define the alpha level and degrees of freedom
+alpha <- 0.05
+df1 <- 1    # Numerator degrees of freedom (commonly 1 for a simple test)
+df2 <- 1021 # Denominator degrees of freedom
+
+# Compute the F-value at alpha = 0.05
+f_value <- qf(1 - alpha, df1, df2)
+
+# Print the F-value
+print(f_value)
+
+# from anova table we've:
+f0 <- 204.269
+cat("F0 = ", f0, ">" , "F = ", f_value, "\n")
+```
+
+## Question 1: 
+
+Is there a relationship between the predictors (age and ingredients) and the response variable (compressive strength)?
+
+### Null hypothesis: coefficients for each predictor is zero.
+
+### F0 = 204.3 >> 1 (suggests at least one of the predictors is related to compressive strength)
+
+### F-statistic = 3.850583 << F0 (associated to the probability that the null hypothesis is true)
+
+### Therefore, there is a relationship between the predictors and the response variable.
+
+## Question 2: 
+
+How strong is the relationship?
+  
+### R-squared = 0.616 (61.6% of variance is explained by the model)
+
+## Question 3: 
+
+Which predictors contribute to compressive strength?
+  
+### Look at the p-values for each t-statistic for each predictor where p-values are the probability of t-statistic given the null hypothesis is true. A probability less than (0.05) is considered sufficient to reject the null hypothesis.
+
+### All are less than 0.05 except coarse and fine aggregates. Therefore, the aggregates do not contribute to compressive strength in this model.
+
+
+##  Question 4: 
+
+How large is the effect of each predictor on compressive strength?
+
+### The only predictor confidence interval to include zero is coarse aggregate. The rest are considered to be statistically significant. 
+
+### To test whether collinearity is the reason why the confidence interval include 0 for coarse aggregate, the VIF scores are calculated.
+
+### VIF scores for each feature
+
+```{r}
+# VIF(Variance Inflation Factor) = 1/(1-R^2)
+vif(model)
+```
+
+### The VIF scores exceeding 5 to 10 indicate collinearity (where 1 is the minimum).
+
+
+### The variables Aggregate, Blast Furnace Slag, Water, Fly Ash, and Cement have VIF scores ranging from 5 to 10, indicating potential multicollinearity, particularly if a conservative threshold is applied. Superplasticizer, with a VIF score below 5, has the widest confidence interval, which might also suggest the presence of multicollinearity. Consequently, we cannot definitively determine whether Coarse Aggregate is statistically significant, as the inclusion of 0 in confidence interval may be influenced by multicollinearity.
+
+
+### To assess association of each predictor, seperate OLS for each predictor is performed:
+
+```{r}
+model1 <- lm(Concrete.compressive.strength ~ Cement, data = data)
+model2 <- lm(Concrete.compressive.strength ~ Blast.Furnace.Slag, data = data)
+model3 <- lm(Concrete.compressive.strength ~ Fly.Ash, data = data)
+model4 <- lm(Concrete.compressive.strength ~ Water, data = data)
+model5 <- lm(Concrete.compressive.strength ~ Superplasticizer, data = data)
+model6 <- lm(Concrete.compressive.strength ~ Coarse.Aggregate, data = data)
+model7 <- lm(Concrete.compressive.strength ~ Fine.Aggregate, data = data)
+model8 <- lm(Concrete.compressive.strength ~ Age..day., data = data)
+```
+
+### * Cement
+
+```{r}
+ols_regress(model1)
+
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Blast.Furnace.Slag
+
+```{r}
+ols_regress(model2)
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Fly.Ash
+
+```{r}
+ols_regress(model3)
+
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Water
+
+```{r}
+ols_regress(model4)
+
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Superplasticizer
+
+```{r}
+ols_regress(model5)
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Coarse.Aggregate
+
+```{r}
+ols_regress(model6)
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Fine.Aggregate
+
+```{r}
+ols_regress(model7)
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### * Age..day.
+
+```{r}
+ols_regress(model8)
+```
+
+### Standard Errors assume that the covariance matrix of the errors is correctly specified.
+
+### Looking at the p-value of the t-statistic: all variables have a strong association with compressive strength where fly ash has the largest p-value of 0.001.
+
+## Question 5: 
+
+How accurately can this model predict compressive strength?
+
+### The accuracy depends on what type of prediction:
+### Individual response (Y = f(X) + ep), the prediction interval is used
+### Average response (f(X)), the confidence interval is used
+### Prediction intervals are wider than confidence intervals because the account for 
+### the uncertainty associated with the irreducible error (ep).
+
+```{r}
+# New data point
+new_data <- data.frame(
+  Cement = 300,
+  Blast.Furnace.Slag = 100,
+  Fly.Ash = 50,
+  Water = 200,
+  Superplasticizer = 5,
+  Coarse.Aggregate = 1000,
+  Fine.Aggregate = 800,
+  Age..day. = 28
+)
+
+# Predict with confidence interval
+print("confidence interval")
+predict(model, newdata = new_data, interval = "confidence")
+
+# Predict with prediction interval
+print("prediction interval")
+predict(model, newdata = new_data, interval = "prediction")
+
+```
+
+### Confidence Interval (33, 39): The range where the average compressive strength for the given predictors is expected to lie.
+
+### Prediction Interval (15, 56): The range where an individual observation of compressive strength is expected to lie, accounting for random error (ei).
+
+### 1. The Prediction Interval is wider than the Confidence Interval because it accounts for additional variability in individual responses.
+
+### 2. The width of the intervals depends on:
+
+### . The variability of the data (lamba^2).
+
+### . Sample size (n).
+
+### . Distance of the predictors from the mean (further predictors result in wider intervals).
+
+### Assessing Model Accuracy
+
+```{r}
+# Total Sum of Squares (SST)
+sst <- sum((data$Concrete.compressive.strength - mean(data$Concrete.compressive.strength))^2)
+
+# Residual Sum of Squares (SSR)
+ssr <- sum(residuals(model)^2)
+
+# R-squared
+r_squared <- 1 - (ssr / sst)
+cat("R-squared: ", r_squared,"\n")
+
+# RMSE and MAE
+library(Metrics)
+print("R-MSE")
+rmse(actual = data$Concrete.compressive.strength, predicted = predict(model))
+print("MAE")
+mae(actual = data$Concrete.compressive.strength, predicted = predict(model))
+```
+
+
+### R_square shows that 62% of the variance in the dependent variable is explained by the predictors.
+
+
+## Question 6: 
+
+Is the relationship linear?
+
+### Non-linearity can be determined from residual vs. predicted 
+### value plot for each variable (top right plots below). 
+### When linearity exists, there should be no clear pattern. 
+### The residual plot with the most non-linear form is for age where for ages 0 to 20, 
+### there are negative residuals then the residuals increase from 20 to 100 before 
+### decreasing again. Water and fine aggregate have slight non-linear patterns. 
+### Transformations of the predictors (e.g., sqrt(X), X^2) could accomodate the nonlinearities.
+
+
+### Cement
+
+```{r}
+ols_plot_resid_fit(model1) 
+```
+
+### Blast.Furnace.Slag
+
+```{r}
+ols_plot_resid_fit(model2) 
+```
+
+### Fly.Ash
+
+```{r}
+ols_plot_resid_fit(model3) 
+```
+
+### Water
+
+```{r}
+ols_plot_resid_fit(model4) 
+```
+
+### Superplasticizer
+
+```{r}
+ols_plot_resid_fit(model5) 
+```
+
+### Coarse.Aggregate
+
+```{r}
+ols_plot_resid_fit(model6) 
+```
+
+### Fine.Aggregate
+
+```{r}
+ols_plot_resid_fit(model7) 
+```
+
+### Age..day.
+
+```{r}
+ols_plot_resid_fit(model8) 
+```
+
+### Let's conduct Pagan test to check constant variance assumption of each predictor
+
+### Cement
+
+```{r}
+bptest(model1, data = data, studentize = FALSE)
+```
+### Blast.Furnace.Slag
+
+```{r}
+bptest(model2, data = data, studentize = FALSE)
+```
+
+### Fly.Ash
+
+```{r}
+bptest(model3, data = data, studentize = FALSE)
+```
+
+### Water
+
+```{r}
+bptest(model4, data = data, studentize = FALSE)
+```
+### Superplasticizer
+
+```{r}
+bptest(model5, data = data, studentize = FALSE)
+```
+
+### Coarse.Aggregate
+
+```{r}
+bptest(model6, data = data, studentize = FALSE)
+```
+
+### Fine.Aggregate
+
+```{r}
+bptest(model7, data = data, studentize = FALSE)
+```
+
+### Age..day
+
+```{r}
+bptest(model8, data = data, studentize = FALSE)
+```
+### All predictor has p-value < 0.05 except Coarse.Aggregate and Age..day so the assumption of constant variance error is valid for these two predictors.
+
+### As Coarse.Aggregate and Age..day validate constant variance error assumption, we can apply a transformation function to validate the assumption to the remaining features.
+
+### apply log()
+
+```{r}
+# data1 = data
+#data1$log_X1 <- log(data1$X1)
+#data1$log_X2 <- log(data1$X2)
+#data1$log_X3 <- log(data1$X3)
+
+# data1$Cement <- sqrt(data1$Cement)
+#data1$Blast.Furnace.Slag <- sqrt(data1$Blast.Furnace.Slag)
+#data1$Fly.Ash <- sqrt(data1$Fly.Ash)
+#data1$Water <- sqrt(data1$Water)
+#data1$Superplasticizer <- sqrt(data1$Superplasticizer)
+#data1$Fine.Aggregate <- sqrt(data1$Fine.Aggregate) 
+# data1$Concrete.compressive.strength <- sqrt(data1$Concrete.compressive.strength)
+# data1
+```
+
+```{r}
+# Fit the OLS model
+#model_n <- lm(Concrete.compressive.strength ~ ., data = data1)
+# ols_regress(model_n) #sig. in output table represent p-value
+```
+
+```{r}
+#bptest(model_n, data = data1, studentize = FALSE)
+```
+
+
+
+### Let's conduct lack of fit test to see if SLR is a good fit of the model or not
+
+
+### Perform Lack-of-Fit Test
+
+### *Cement
+
+```{r}
+anova(model, model1)
+```
+
+### *Blast.Furnace.Slag
+
+```{r}
+anova(model, model2)
+```
+
+### *Fly.Ash
+
+```{r}
+anova(model, model3)
+```
+
+### *Water
+
+```{r}
+anova(model, model4)
+```
+
+### *Superplasticizer
+
+```{r}
+anova(model, model5)
+```
+
+### *Coarse.Aggregate
+
+```{r}
+anova(model, model6)
+```
+
+### *Fine.Aggregate
+
+```{r}
+anova(model, model7)
+```
+
+### *Age..day.
+
+```{r}
+anova(model, model8)
+```
+
+### With only one predictor which is Simple Linear Regression (SLR), the null hypothesis is not valid means SLR is not a good fit for the data.
+
+### Let's combined predictor to check for model selection.
+
+### The predictor which gives the highest reduction in the uncertainty in predicting response variable is : Cement, Superplasticizer, Age..day., Water, Fine.Aggregate, Coarse.Aggregate, Blast.Furnace.Slag, Fly.Ash respectively.
+
+### So we'll insert first Cement in the model.
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Age..day., data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Water, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Fine.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Coarse.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Blast.Furnace.Slag, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Fly.Ash, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+### Multiple Linear Regression with 2 predictors combined, is not a good fit for data and it has low R^2 value.
+
+### The Two combined predictor which gives the highest reduction in the uncertainty in predicting response variable is : Cement+Superplasticizer. Hence it will be inserted first in the model
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day., data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Water, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Fine.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Coarse.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Blast.Furnace.Slag, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Fly.Ash, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+### Multiple Linear Regression with 3 predictor combined, is not a good fit for data and it has low R^2 value.
+
+### The Three combined predictor which gives the highest reduction in the uncertainty in predicting response variable is: Cement+Superplasticizer+Age..day. So it will come first in the model.
+
+
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Water, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Fine.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Coarse.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Fly.Ash, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+### Multiple Linear Regression with 4 predictors combined, is not a good fit for data and it has low R^2 value.
+
+### The fourth combined predictor which gives the highest reduction in the uncertainty in predicting response variable is: Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag. So it will come first in the model.
+
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Fine.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Coarse.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Fly.Ash, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+### Multiple Linear Regression with 5 predictors combined, is not a good fit for data and it has low R^2 value.
+
+### The fifth combined predictor which gives the highest reduction in the uncertainty in predicting response variable is: Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water.So it will come first in the model.
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fine.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Coarse.Aggregate, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fly.Ash, data = data)
+ols_regress(mdel)
+anova(model, mdel)
+```
+### Multiple Linear Regression with 6 predictor, the linearity assumption is valid. Hence MLR with 6 predictor is a good fit for the data with an R^2 of 61%.
+
+### The sixth combined predictor which gives the highest reduction in the uncertainty in predicting response variable is: Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fly.Ash
+
+
+```{r}
+# mdel <- lm(Concrete.compressive.strength ~  Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fly.Ash+Fine.Aggregate, data = data)
+# ols_regress(mdel)
+# anova(model, mdel)
+```
+```{r}
+# mdel <- lm(Concrete.compressive.strength ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fly.Ash+Coarse.Aggregate, data = data)
+#ols_regress(mdel)
+#anova(model, mdel)
+```
+
+### As these 6 predictors combined together is a good fit for data with an acceptable R^2 value, so it can be the selected model. Let's conduct Breusch-Pagan to check the constance variance assumption of the present selected model.
+
+```{r}
+bptest(mdel, varformula = ~ Cement+Superplasticizer+Age..day.+Blast.Furnace.Slag+Water+Fly.Ash, data = data, studentize = FALSE)
+```
+### Looking at the p-value under Breusch-Pagan test: the non constance variance assumption is valid for the selected model.
+
+## Step 6: Feature Engineering with OLS
+
+## Question 7: 
+
+Is there synergy among the predictors?
+
+### To evaluate the impact of an interaction term that accounts for non-additive relationships, I created a water-to-cement ratio (water:cement) and re-ran an OLS analysis. Including this interaction term resulted in an increase in the R-squared value from 0.615 to 0.618. However, since adding predictors naturally increases R-squared, the improvement of 0.003 is minimal. Adjusted R-squared, which penalizes for additional predictors, is a better measure in this case. It increased from 0.612 to 0.615, suggesting that some synergy exists between these predictors. Similarly, AIC and SBC, which penalize models for additional complexity, provide further justification for including the interaction term. The AIC decreased from 7758 to 7752, while the SBC remained constant at 7807. This indicates that the added predictor improves the model without overfitting. While cross-validation would be the best approach to assess the test set performance, the nonlinearity of compressive strength relative to the predictors suggests that linear regression may not be the most suitable model. More complex non-linear models would likely yield better predictive performance. For inference purposes, however, metrics like adjusted R-squared, SBC, and AIC are sufficient for evaluating the inclusion of this interaction term.
+
+
+### Other interaction terms I tried are cement : fine.aggregate, cement : coarse.aggregate, cement : fine.aggregate : coarse.aggregate, and superplasticizer : cement. None of these increased adj. R-squared and their t-statistic p-value were > 0.05.
+
+```{r}
+data$water_cement_ratio <- data$Water/data$Cement
+head(data)
+```
+
+### plot water:cement ratio against compressive strength
+
+```{r}
+var <- "water_cement_ratio"
+response_var <- "Concrete.compressive.strength"
+f <- ggplot(data, aes_string(x = var, y = response_var)) +
+  geom_point(alpha = 0.6, color = "green") +
+  labs(title = paste("Relationship between", var, "and", response_var),
+       x = var, y = response_var) +
+  theme_minimal()
+print(f)
+```
+
+### water_cement_ratio plot against compressive strength shows a negative relationship means when the compressive strength increases, water:cement ratio decreases as well.
+
+### Generate OLS regression results with water : cement ratio
+
+```{r}
+mdel <- lm(Concrete.compressive.strength ~ ., data = data)
+ols_regress(mdel) #sig. in output table represent p-value
+```
+### The insertion water:cement ratio in the model provoke an increase of R^2 value from 0.615 to 0.618.
+
+### Generate OLS summary with only water : cement ratio
+
+```{r}
+mdel1 <- lm(Concrete.compressive.strength ~ water_cement_ratio, data = data)
+ols_regress(mdel1)
+```
+
+### Looking at the p-value of the t-statistic: water : cement ratio has a strong association with compressive strength.
+
+### Non-linearity can be determined from residual vs. predicted value plot for water_cement_ratio variable
+
+```{r}
+ols_plot_resid_fit(mdel1)
+```
+
+### Water : cement ratio residuals exhibits a near linear relationship.
+
+### Let's conduct Lack of Fit test to valid Non-linearity assumption
+
+```{r}
+anova(mdel, mdel1)
+```
+
+### Non-linearity assumption is valid for water_cement_ratio variable.
+
+## Conclusion
+
+### The regression model successfully predicted the compressive strength of concrete based on input variables such as cement, water-cement ratio, Age..day., and other mix components.
+### Performance metrics such as R^2 , Mean Absolute Error (MAE), and Mean Squared Error (MSE) indicate a better predictive capability with R^2 of 65%.
+
+### The most significant predictors of compressive strength were identified as Cement,Superplasticizer, Age of curing, and water-cement ratio.
+
+### This aligns with the theoretical understanding of concrete mechanics, where higher cement content and prolonged curing typically result in stronger concrete.
+
+### The relationship between some predictors and compressive strength was found to be non-linear, particularly for variables water_cement_ratio and age, indicating the need for polynomial or interaction terms to capture their effects.
+
+### Certain features, such as aggregate, showed limited impact on the prediction and can be excluded to simplify the model.
+
+### The model is based on Concrete Compressive Strength Regression dataset, and its generalizability may be limited for other concrete formulations or environmental conditions.
+
+### Advanced machine learning models (e.g., Random Forest, XGBoost) can be explored to capture complex interactions and non-linearities in the data.
+

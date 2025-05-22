@@ -1,0 +1,98 @@
+Concrete is the most important material in civil engineering. The
+concrete compressive strength is a highly nonlinear function of age and
+ingredients. These ingredients include cement, blast furnace slag, fly ash,
+water, superplasticizer, coarse aggregate, and fine aggregate.
+
+Data Characteristics:
+
+The actual concrete compressive strength (MPa) for a given mixture under a
+specific age (days) was determined from laboratory. Data is in raw form (not scaled).
+
+Summary Statistics:
+
+Number of instances (observations): 1030
+Number of Attributes: 9
+Attribute breakdown: 8 quantitative input variables, and 1 quantitative output variable
+Missing Attribute Values: None
+
+Variable Information:
+
+Given is the variable name, variable type, the measurement unit and a brief description.
+The concrete compressive strength is the regression problem. The order of this listing
+corresponds to the order of numerals along the rows of the database.
+
+Name -- Data Type -- Measurement -- Description
+
+Cement (component 1) -- quantitative -- kg in a m3 mixture -- Input Variable
+Blast Furnace Slag (component 2) -- quantitative -- kg in a m3 mixture -- Input Variable
+Fly Ash (component 3) -- quantitative -- kg in a m3 mixture -- Input Variable
+Water (component 4) -- quantitative -- kg in a m3 mixture -- Input Variable
+Superplasticizer (component 5) -- quantitative -- kg in a m3 mixture -- Input Variable
+Coarse Aggregate (component 6) -- quantitative -- kg in a m3 mixture -- Input Variable
+Fine Aggregate (component 7) -- quantitative -- kg in a m3 mixture -- Input Variable
+Age -- quantitative -- Day (1~365) -- Input Variable
+Concrete compressive strength -- quantitative -- MPa -- Output Variable
+
+Questions
+Is there a relationship between the predictors (age and ingredients) 
+and the response variable (compressive strength)?
+Given there is a relationship:
+
+How strong is it?
+Which predictors contribute to compressive strength?
+How large is the effect of each predictor on compressive strength?
+How accurately can I predict compressive strength?
+Is the relationship linear?
+Is there synergy/interaction among the predictors?
+
+We've to see:
+
+Question 1: Is there a relationship between the predictors (age and ingredients) and the response variable (compressive strength)?
+
+Null hypothesis: coefficients for each predictor is zero.
+
+F-statistic = 204.3 >> 1 (suggests at least one of the predictors is related to compressive strength)
+
+Prob(F-statistic) = 6.29e-206 << 0.05 (probability that the null hypothesis is true)
+
+Therefore, there is a relationship between the predictors and the response variable.
+
+Question 2: How strong is the relationship?
+
+R-squared = 0.616 (61.6% of variance is explained by the model)
+
+Question 3: Which predictors contribute to compressive strength?
+
+Look at the p-values for each t-statistic for each predictor where p-values are the probability of t-statistic given the null hypothesis is true. A probability less than 1/20 (0.05) is considered sufficient to reject the null hypothesis.
+
+All but coarse and fine aggregates are less than 0.05. Therefore, the aggregates do not contribute to compressive strength in this model.
+
+Question 4: How large is the effect of each predictor on compressive strength?
+
+The only predictor confidence interval to include zero is coarse aggregate. The rest are considered to be statistically significant. To test whether collinearity is the reason why the confidence interval is so wide for coarse aggregate, 
+the VIF scores are calculated.
+
+The VIF scores exceeding 5 to 10 indicate collinearity (where 1 is the minimum). The aggregates, water, and cement exhibit multicollinearity. Superplasticizer is within the 5 to 10 range, so if being conservative then superplasticizer also demonstrates multicollinearity. Therefore, we cannot say that coarse aggregate is or is not statistically significant, because the wideness of the confidence interval could be due to multicollinearity.
+
+To assess association of each predictor, seperate OLS for each predictor is performed:
+
+Looking at the p-value of the t-statistic: all variables have a strong association with compressive strength where fly ash has the weakest by 0.001.
+
+Question 5: How accurately can this model predict compressive strength?
+
+The accuracy depends on what type of prediction:
+
+Individual response (Y = f(X) + ep), the prediction interval is used
+Average response (f(X)), the confidence interval is used
+Prediction intervals are wider than confidence intervals because the account for the uncertainity associated with the irreducible error (ep).
+
+Question 6: Is the relationship linear?
+
+Non-linearity can be determined from residual vs. predicted value plot for each variable (top right plots below). When linearity exists, there should be no clear pattern. The residual plot with the most non-linear form is for age where for ages 0 to 20, there are negative residuals then the residuals increase from 20 to 100 before decreasing again. Water and fine aggregate have slight non-linear patterns. Transformations of the predictors (e.g., sqrt(X), X^2) could accomodate the nonlinearities.
+
+6. Feature Engineering with OLS
+Question 7: Is there synergy among the predictors?
+
+To answer this, an interaction term needs to be created that accomodates non-additive relationships and the R-squared value should increase with this inclusion. Below I have created an interaction term for water and cement (water : cement ratio) and ran an OLS analysis again. With this interaction term, the R-squared term increased from 0.616 to 0.618. Since adding variables increases R-squared automatically and an increase of 0.002 is not large, it's better to look at the adj. R-squared which penalizes additional predictors. This value went from 0.613 to 0.615 indicating synergy exists between these predictors. Similarly, AIC and BIC metrics penalize models with more predictors, but AIC decreased with the addition of water : cement ratio (from 7756 to 7750) and BIC remained the same (7800) further demonstrating that the addition of the predictor is justified. The best method for judgement of the inclusion of this variable is through estimating the test set results through cross-validation, but given the nonlinearity of compressive strength to the predictors, linear regression isn't worth wasting further time on as other non-linear models will produce better predictive results. For inference purposes, adj.-R-squared, BIC, and AIC suffice.
+
+Other interaction terms I tried are cement : fineaggregate, cement : coarseaggregate, cement : fineaggregate : coarseaggregate, and superplasticizer : cement. None of these increased adj. R-squared and their t-statistic p-value were > 0.05.
